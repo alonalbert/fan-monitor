@@ -4,10 +4,11 @@ import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 
-class SensorsEntity(id: EntityID<Int>) : IntEntity(id) {
+class SensorsEntity(id: EntityID<Int>) : IntEntity(id), HasTimestamp {
   companion object : IntEntityClass<SensorsEntity>(SensorsTable)
 
-  var timestamp by SensorsTable.timestamp
+  override var timestamp by SensorsTable.timestamp
+
   var tempInlet by SensorsTable.tempInlet
   var tempExhaust by SensorsTable.tempExhaust
   var tempCpu1 by SensorsTable.tempCpu1
