@@ -18,8 +18,8 @@ application {
 }
 
 tasks.withType(KotlinCompile::class.java) {
-
   kotlinOptions {
+    kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
     jvmTarget = JavaVersion.VERSION_11.toString()
   }
 }

@@ -1,14 +1,19 @@
 package us.albertim.fan
 
 import io.ktor.server.engine.*
+import kotlinx.coroutines.*
 import kotlinx.html.div
 import kotlinx.html.h1
-import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
-import space.kscience.plotly.*
+import space.kscience.plotly.Plotly
+import space.kscience.plotly.layout
 import space.kscience.plotly.models.AxisType
 import space.kscience.plotly.models.Trace
+import space.kscience.plotly.plot
+import space.kscience.plotly.server.pushUpdates
 import space.kscience.plotly.server.serve
 import us.albertim.fan.db.FanControlEntity
 import us.albertim.fan.db.FanControlTable
@@ -16,11 +21,19 @@ import us.albertim.fan.db.SensorsEntity
 import us.albertim.fan.db.SensorsTable
 import java.sql.Connection
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import kotlin.time.Duration
+import kotlin.time.ExperimentalTime
 
 //private const val DATABASE_FILENAME = "test.db"
 private const val DATABASE_FILENAME = "/storage/db/dell-r730xd-fan-speed.db"
+val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
+@DelicateCoroutinesApi
+@ExperimentalTime
 fun main() {
 //  embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
 //    configureRouting()
@@ -32,16 +45,7 @@ fun main() {
   val sensors = transaction {
     SensorsEntity.find { SensorsTable.timestamp greater oldest }.map { it }
   }
-  val fanControl = transaction {
-    FanControlEntity.find { FanControlTable.timestamp greater oldest }.map {
-      it.apply {
-        if (auto) {
-          percent = 100
-        }
-      }
-    }
-  }
-  val sensorTimestamps = sensors.map { it.timestamp }
+  val sensorTimestamps = sensors.map { it.timestamp * 1_000 }
   val tempTraces = listOf(
     createTrace("Inlet", sensors, sensorTimestamps) { it.tempInlet },
     createTrace("Exhaust", sensors, sensorTimestamps) { it.tempExhaust },
@@ -56,11 +60,29 @@ fun main() {
     createTrace("Fan 5 RPM", sensors, sensorTimestamps) { it.rpmFan5 },
     createTrace("Fan 6 RPM", sensors, sensorTimestamps) { it.rpmFan6 },
   )
-  val fanPowerTrace = createTrace("Fan power (%)", fanControl, fanControl.map { it.timestamp }) { it.percent }
 
-  createServer(tempTraces, fanPowerTrace, rpmTraces).start(wait = true)
+  val fanPowerTrace = Trace().apply { name = "Fan power (%)" }
+  GlobalScope.launch {
+    while (isActive) {
+      val fanControl = transaction {
+        FanControlEntity.find { FanControlTable.timestamp greater oldest }.map { it }
+      }
+      fanPowerTrace.x.set(fanControl.map {
+        LocalDateTime.ofInstant(
+          Instant.ofEpochSecond(it.timestamp),
+          ZoneId.systemDefault()
+        ).format(formatter)
+      })
+      fanPowerTrace.y.set(fanControl.map { if (it.auto) 100 else it.percent })
+      delay(Duration.minutes(1))
+    }
+  }
+
+  createServer(tempTraces, fanPowerTrace, rpmTraces)
+    .start(wait = true)
 }
 
+@ExperimentalTime
 private fun createServer(
   tempTraces: List<Trace>,
   fanPowerTrace: Trace,
@@ -74,13 +96,6 @@ private fun createServer(
         xaxis.type = AxisType.date
       }
     }
-    val fanPowerPlot = Plotly.plot {
-      traces(fanPowerTrace)
-      layout {
-        title = "Fan Power"
-        xaxis.type = AxisType.date
-      }
-    }
     val rpmPlot = Plotly.plot {
       traces(rpmTraces)
       layout {
@@ -88,18 +103,26 @@ private fun createServer(
         xaxis.type = AxisType.date
       }
     }
-    page {
+    page { renderer ->
       h1 { +"Fan Control Status" }
       div {
         plot(tempPlot)
       }
       div {
-        plot(fanPowerPlot)
+        plot(renderer = renderer) {
+          traces(fanPowerTrace)
+          layout {
+            title = "Fan Power"
+            xaxis.type = AxisType.date
+          }
+        }
       }
       div {
         plot(rpmPlot)
       }
     }
+    pushUpdates(10000)
+//    pushUpdates(Duration.minutes(1).inWholeMilliseconds.toInt())
   }
   return server
 }
@@ -123,6 +146,7 @@ private fun <T> createTrace(
   this.name = name
   x.set(timestamps)
   y.set(sensors.map(function))
+
 }
 
 
