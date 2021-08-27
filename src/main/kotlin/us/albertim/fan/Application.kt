@@ -69,7 +69,6 @@ private fun updateTraces(
   val sensors = transaction {
     SensorsEntity.find { SensorsTable.timestamp greater oldest }.map { it }
   }
-  println("Sensors: ${sensors.size}")
   val sensorsTimestamps = getTimestamps(sensors)
   for (temperature in temperatures + rpms) {
     temperature.update(sensors, sensorsTimestamps)
@@ -91,11 +90,12 @@ private fun createServer(
   rpms: List<Trace>
 ): ApplicationEngine {
   val server = Plotly.serve(host = "0.0.0.0", port = 3333) {
+    embedData = true
+
     page { renderer ->
       h1 { +"Fan Control Status" }
       div {
         plot(renderer = renderer) {
-          println("Temp: ${temperatures[0].x.numbers.count()}")
           traces(temperatures)
           layout {
             title = "Temp's"
@@ -129,7 +129,6 @@ private fun createServer(
 
 private fun initializeDatabase(filename: String) {
   Database.connect("jdbc:sqlite:${File(filename).absoluteFile}", "org.sqlite.JDBC")
-  println("DB: ${File(filename).absoluteFile}")
   val transactionSerializable = Connection.TRANSACTION_SERIALIZABLE
   TransactionManager.manager.defaultIsolationLevel = transactionSerializable
 
