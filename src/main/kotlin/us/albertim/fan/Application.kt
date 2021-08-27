@@ -10,8 +10,7 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
 import space.kscience.plotly.Plotly
 import space.kscience.plotly.layout
-import space.kscience.plotly.models.AxisType
-import space.kscience.plotly.models.Trace
+import space.kscience.plotly.models.*
 import space.kscience.plotly.plot
 import space.kscience.plotly.server.pushUpdates
 import space.kscience.plotly.server.serve
@@ -34,22 +33,25 @@ fun main(args: Array<String>) {
   initializeDatabase(args[0])
   val temperatures: List<TraceHelper<SensorsEntity>> =
     listOf(
-      TraceHelper("Inlet") { it.tempInlet },
-      TraceHelper("Exhaust") { it.tempExhaust },
-      TraceHelper("CPU 1") { it.tempCpu1 },
-      TraceHelper("CPU 2") { it.tempCpu2 })
+      TraceHelper("Inlet", movingAverageSize = 10) { it.tempInlet },
+      TraceHelper("Exhaust", movingAverageSize = 10) { it.tempExhaust },
+      TraceHelper("CPU 1", movingAverageSize = 10) { it.tempCpu1 },
+      TraceHelper("CPU 2", movingAverageSize = 10) { it.tempCpu2 },
+    )
 
+  val averageFanRpm: (SensorsEntity) -> Double = {
+    listOf(it.rpmFan1, it.rpmFan2, it.rpmFan3, it.rpmFan4, it.rpmFan5, it.rpmFan6).average()
+  }
   val rpms: List<TraceHelper<SensorsEntity>> = listOf(
-    TraceHelper("Fan 1 RPM") { it.rpmFan1 },
-    TraceHelper("Fan 2 RPM") { it.rpmFan2 },
-    TraceHelper("Fan 3 RPM") { it.rpmFan3 },
-    TraceHelper("Fan 4 RPM") { it.rpmFan4 },
-    TraceHelper("Fan 5 RPM") { it.rpmFan5 },
-    TraceHelper("Fan 6 RPM") { it.rpmFan6 }
+    TraceHelper("Fan RPM", color = "rgba(0, 0, 0, 0.2)", getValue = averageFanRpm),
+    TraceHelper("Fan RPM Average", color = "red", movingAverageSize = 10, getValue = averageFanRpm),
   )
 
+  val fixFanPower: (FanControlEntity) -> Double = { if (it.auto) 56.0 else it.percent }
   val fanPowers: List<TraceHelper<FanControlEntity>> = listOf(
-    TraceHelper("Fan power (%)") { if (it.auto) 56 else it.percent })
+    TraceHelper("Fan power Average (%)", color = "green", movingAverageSize = 10, getValue = fixFanPower),
+    TraceHelper("Fan power (%)", color = "rgba(0, 0, 0, 0.2)", getValue = fixFanPower),
+  )
 
   updateTraces(temperatures, rpms, fanPowers)
 
@@ -147,11 +149,24 @@ private fun <T : HasTimestamp> getTimestamps(list: List<T>) = list.map {
   ).format(formatter)
 }
 
-private class TraceHelper<T : HasTimestamp>(name: String, private val getValue: (T) -> Int) {
-  val trace = Trace().apply { this.name = name }
+private class TraceHelper<T : HasTimestamp>(
+  name: String,
+  private val movingAverageSize: Int = 1,
+  private val color: String? = null,
+  private val getValue: (T) -> Double
+) {
+  val trace = Trace().apply {
+    this.name = name
+    if (color != null) {
+      line {
+        color(this@TraceHelper.color)
+      }
+    }
+  }
 
-  fun update(values: List<T>, timestamps: List<String>) {
-    trace.y.set(values.map { getValue(it) })
+  fun update(entities: List<T>, timestamps: List<String>) {
+    trace.y.set(entities.map<T, Double> { getValue(it) }
+      .windowed(movingAverageSize, step = 1, partialWindows = true) { it.average() })
     trace.x.set(timestamps)
   }
 }
