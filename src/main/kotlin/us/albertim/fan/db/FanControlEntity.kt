@@ -8,6 +8,6 @@ class FanControlEntity(id: EntityID<Int>) : IntEntity(id), HasTimestamp {
   companion object : IntEntityClass<FanControlEntity>(FanControlTable)
 
   override var timestamp by FanControlTable.timestamp
-  var percent by FanControlTable.percent
-  var auto by FanControlTable.auto
+  var percent: Double by FanControlTable.percent
+  var auto: Boolean by FanControlTable.auto
 }
