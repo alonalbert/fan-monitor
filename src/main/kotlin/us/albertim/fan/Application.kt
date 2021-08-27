@@ -32,21 +32,24 @@ val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm
 @ExperimentalTime
 fun main(args: Array<String>) {
   initializeDatabase(args[0])
-  val inletTemp = TraceHelper<SensorsEntity>("Inlet") { it.tempInlet }
-  val exhaustTemp = TraceHelper<SensorsEntity>("Exhaust") { it.tempExhaust }
-  val cpu1Temp = TraceHelper<SensorsEntity>("CPU 1") { it.tempCpu1 }
-  val cpu2Temp = TraceHelper<SensorsEntity>("CPU 2") { it.tempCpu2 }
-  val temperatures = listOf(inletTemp, exhaustTemp, cpu1Temp, cpu2Temp)
+  val temperatures: List<TraceHelper<SensorsEntity>> =
+    listOf(
+      TraceHelper("Inlet") { it.tempInlet },
+      TraceHelper("Exhaust") { it.tempExhaust },
+      TraceHelper("CPU 1") { it.tempCpu1 },
+      TraceHelper("CPU 2") { it.tempCpu2 })
 
-  val fan1Rpm = TraceHelper<SensorsEntity>("Fan 1 RPM") { it.rpmFan1 }
-  val fan2Rpm = TraceHelper<SensorsEntity>("Fan 2 RPM") { it.rpmFan2 }
-  val fan3Rpm = TraceHelper<SensorsEntity>("Fan 3 RPM") { it.rpmFan3 }
-  val fan4Rpm = TraceHelper<SensorsEntity>("Fan 4 RPM") { it.rpmFan4 }
-  val fan5Rpm = TraceHelper<SensorsEntity>("Fan 5 RPM") { it.rpmFan5 }
-  val fan6Rpm = TraceHelper<SensorsEntity>("Fan 6 RPM") { it.rpmFan6 }
-  val rpms = listOf(fan1Rpm, fan2Rpm, fan3Rpm, fan4Rpm, fan5Rpm, fan6Rpm)
+  val rpms: List<TraceHelper<SensorsEntity>> = listOf(
+    TraceHelper("Fan 1 RPM") { it.rpmFan1 },
+    TraceHelper("Fan 2 RPM") { it.rpmFan2 },
+    TraceHelper("Fan 3 RPM") { it.rpmFan3 },
+    TraceHelper("Fan 4 RPM") { it.rpmFan4 },
+    TraceHelper("Fan 5 RPM") { it.rpmFan5 },
+    TraceHelper("Fan 6 RPM") { it.rpmFan6 }
+  )
 
-  val fanPowers = listOf(TraceHelper<FanControlEntity>("Fan power (%)") { if (it.auto) 56 else it.percent })
+  val fanPowers: List<TraceHelper<FanControlEntity>> = listOf(
+    TraceHelper("Fan power (%)") { if (it.auto) 56 else it.percent })
 
   updateTraces(temperatures, rpms, fanPowers)
 
