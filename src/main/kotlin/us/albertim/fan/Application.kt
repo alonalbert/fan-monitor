@@ -10,7 +10,8 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
 import space.kscience.plotly.Plotly
 import space.kscience.plotly.layout
-import space.kscience.plotly.models.*
+import space.kscience.plotly.models.AxisType
+import space.kscience.plotly.models.Trace
 import space.kscience.plotly.plot
 import space.kscience.plotly.server.pushUpdates
 import space.kscience.plotly.server.serve
